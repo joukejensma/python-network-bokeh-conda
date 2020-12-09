@@ -28,14 +28,13 @@ def compute_network(source, floating=1., fixed=0.):
     # decision variables: 
     # binary: construct pipe from point i to j for all points i to points j
     # flow vars: flow from point i to point j for all points i to points j
-    # binary variables: only flow if pipe is constructed, from point i to point j for all points i to points j
     # plus one slack variable for overflow, one for underflow
     nrSlackVar = 0
     numBinaryVars = len(distances)
     numFlowVars = len(distances)
     fixedCostVar = 1
 
-    nrDecVar = numBinaryVars + numFlowVars + numBinaryVars + fixedCostVar + nrSlackVar
+    nrDecVar = numBinaryVars + numFlowVars + fixedCostVar + nrSlackVar
 
     m = 0.00001
     M = 100000.
@@ -44,51 +43,30 @@ def compute_network(source, floating=1., fixed=0.):
     lpsolve('set_minim', lp) 
 
     # construction costs scale with distance, as of now no fixed amount
-    print(f"distances are {[floating * d[2] for d in distances] + [0.] * numFlowVars + [0.] * numBinaryVars + [1] + [1000.] * nrSlackVar}")
-    ret = lpsolve('set_obj_fn', lp, [floating * d[2] for d in distances] + [0.] * numFlowVars + [0.] * numBinaryVars + [1] + [1000.] * nrSlackVar)
+    ret = lpsolve('set_obj_fn', lp, [floating * d[2] for d in distances] + [0.] * numFlowVars + [1] + [1000.] * nrSlackVar)
 
     # set binary vars
     for i in np.arange(1, numBinaryVars + 1):
         ret = lpsolve('set_binary', lp, i, True)
 
-    for i in np.arange(numBinaryVars + numFlowVars + 1, numBinaryVars + numFlowVars + numBinaryVars + 1):
-        ret = lpsolve('set_binary', lp, i, True)
-
+    # define add-binary constraints: allow flow only if edge exists
     for i in np.arange(0, numFlowVars):
-        # f_12 >= mq_12 - M(1-q_12)
         coeff = np.zeros(nrDecVar)
 
         coeff[numBinaryVars + i] = 1.
-        coeff[numBinaryVars + numFlowVars + 1] = -(M + m)
+        coeff[i] = -M
         ret = lpsolve('add_constraint', lp, coeff, GE, -M)
 
-        # f_12 <= Mq_12 - m(1-q_12)
         coeff = np.zeros(nrDecVar)
 
         coeff[numBinaryVars + i] = 1.
-        coeff[numBinaryVars + numFlowVars + 1] = -(M + m)
-        ret = lpsolve('add_constraint', lp, coeff, LE, -m)
-    
-    # ieder punt met nonzero flow moet tenminste 1 edge hebben
+        coeff[i] = -M
+        ret = lpsolve('add_constraint', lp, coeff, LE, 0.)    
+
+    # flow conservation: flow in and out of a node incl node itself should sum to zero!
     for i, coord in enumerate(coords):
         flow = flows[coord]
-        print(f"For coordinate {coord} the flow is {flow}")        
-
-        coeff = np.zeros(nrDecVar)
-        if flow != 0.:
-            for j, (start, end, _) in enumerate(distances):        
-                # find linked edges
-                if((start == coord) | (end == coord)):
-                    print(f"For coordinate {coord} we found matching capacity line {start} to {end}")
-                    coeff[j] = 1.
-            
-            ret = lpsolve('add_constraint', lp, coeff, GE, 1)
-
-
-    
-    for i, coord in enumerate(coords):
-        flow = flows[coord]
-        print(f"For coordinate {coord} the flow is {flow}")
+        print(f"For coordinate {coord} the intrinsic flow is {flow}")
 
         coeff = np.zeros(nrDecVar)
         for j, (start, end, _) in enumerate(distances):
@@ -100,13 +78,14 @@ def compute_network(source, floating=1., fixed=0.):
                 print(f"For coordinate {coord} we found matching capacity line {start} to {end}")
                 coeff[numBinaryVars + j] = 1.
 
-        print(f"{coeff} = {flow}")
-        ret = lpsolve('add_constraint', lp, coeff, EQ, flow)
+        print(f"{[(d[0], d[1]) for d in distances]}")
+        print(f"Balance constraints: {coeff[numBinaryVars:numBinaryVars + numFlowVars]} = {flow}")
+        ret = lpsolve('add_constraint', lp, coeff, EQ, flow)        
 
     # implement fixed costs per pipeline
     coeff = np.zeros(nrDecVar)
     coeff[:numBinaryVars] = fixed
-    coeff[numBinaryVars + numFlowVars + numBinaryVars] = -1.
+    coeff[numBinaryVars + numFlowVars] = -1.
     ret = lpsolve('add_constraint', lp, coeff, EQ, 0.)
 
     ret = lpsolve('write_lp', lp, 'a.lp')
@@ -130,11 +109,22 @@ def compute_network(source, floating=1., fixed=0.):
     text += f"Network total cost: {np.round(opt_result['objfunvalue'], 1)}<p>"
 
     text += f"Total cost due to distance covered with pipelines: {np.round(np.sum(np.asarray(opt_result['lpvars'][:numBinaryVars]) * np.asarray(opt_result['objfun'][:numBinaryVars])), 1)}<br>"
-    text += f"Total cost due to number of pipelines: {np.round(np.sum(opt_result['lpvars'][numBinaryVars + numFlowVars + numBinaryVars]), 1)}<p>"
+    text += f"Total cost due to number of pipelines: {np.round(np.sum(opt_result['lpvars'][numBinaryVars + numFlowVars]), 1)}<p>"
 
     # text += f"Obj fun {opt_result['objfun']}<p>"
 
-    # text += f"LP vars: {opt_result['lpvars']}<p>"
+    # text += f"LP vars (is pipeline built):<br>"
+    
+    # for i, var in enumerate(opt_result['lpvars'][:numBinaryVars]):
+    #     text += f"From {distances[i][0]} to {distances[i][1]}: {var}<br>"
+
+    # text += f"LP vars (pipeline flows):<br>"
+    # for i, var in enumerate(opt_result['lpvars'][numBinaryVars:numBinaryVars + numFlowVars]):
+    #     text += f"From {distances[i][0]} to {distances[i][1]}: {var}<br>"
+
+    # text += f"<br>"
+
+    text += f"Flow conservation per node:<br>"
     for i, coord in enumerate(coords):
         flow = flows[coord]
 
@@ -152,14 +142,25 @@ def compute_network(source, floating=1., fixed=0.):
 
 
     opt_result['edges'] = []
-    for i, result_flow in enumerate(opt_result['lpvars'][numBinaryVars:numBinaryVars + numFlowVars]):
-        fr = distances[i][0]
-        to = distances[i][1]
+    for i, isPipeBuilt in enumerate(opt_result['lpvars'][:numBinaryVars]):
+        if isPipeBuilt == 1:
+            fr = distances[i][0]
+            to = distances[i][1]
+            
+            result_flow = opt_result['lpvars'][numBinaryVars + i]
+            if result_flow > 0.0001:
+                text += f"From point {fr} to {to}: {np.round(result_flow, 1)}<p>"
+                
+                opt_result['edges'].append([fr, to, result_flow])
 
-        # text += f"From point {fr} to {to}: {np.round(result_flow, 1)}<p>"
+    # for i, result_flow in enumerate(opt_result['lpvars'][numBinaryVars:numBinaryVars + numFlowVars]):
+    #     fr = distances[i][0]
+    #     to = distances[i][1]
 
-        if result_flow != 0.:
-            opt_result['edges'].append([fr, to, result_flow])
+    #     # text += f"From point {fr} to {to}: {np.round(result_flow, 1)}<p>"
+
+    #     if result_flow > 0.01:
+    #         opt_result['edges'].append([fr, to, result_flow])
 
     # text += "</h2>"
 
@@ -177,8 +178,8 @@ def draw_lines(p, source, opt_result):
         y2 = to[1]
 
         if result_flow != 0.:
-            p.line([x1, x2], [y1, y2], line_width=result_flow/5., name='line')
-            print(f"Drawing line from {[x1, x2]} to {y1, y2} with {result_flow} capacity!")
+            p.line([x1, x2], [y1, y2], line_width=result_flow, name='line')
+            print(f"Drawing line from {[x1, y1]} to {x2, y2} with {result_flow} capacity!")
     
     # hover_tool = HoverTool(mode='vline', names=['line'], tooltips=[("Built capacity", "@line_width"),])
     # p.add_tools(hover_tool)
@@ -195,7 +196,7 @@ p = figure(x_range=(0, 10), y_range=(0, 10), tools=[],
 p.background_fill_color = 'lightgrey'
 
 source = ColumnDataSource({
-    'x': [2, 8, 5], 'y': [2, 2, 6], 'flow': ['-5', '-5', '10']
+    'x': [2, 7, 5, 8], 'y': [2, 2, 6, 1], 'flow': ['-2', '-5', '8', '-1']
     # 'x': [1, 9], 'y': [1, 9], 'flow': ['10', '-10']
 })
 
@@ -230,7 +231,7 @@ button.on_event(ButtonClick, button_click_event)
 
 p.on_event(PanEnd, button_click_event)
 lumpSumCost = Slider(title="Fixed cost pipe", value=0.0, start=0.0, end=500.0, step=50)
-floatingCost = Slider(title="Floating cost pipe", value=1.0, start=0.0, end=5.0, step=0.5)
+floatingCost = Slider(title="Floating cost pipe", value=1.0, start=0.0, end=500.0, step=10.)
 
 
 def update_data(attrname, old, new):
