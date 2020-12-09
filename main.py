@@ -126,7 +126,11 @@ def compute_network(source, floating=1., fixed=0.):
 
     lpsolve('delete_lp', lp)
 
-    text = f"Optimization result: {opt_result['statustext']}!<p>"
+    text = f"Objective: minimize construction cost of network<p>"
+    text += f"Construction cost is based on number of pipes and distance between nodes.<br>"
+    text += f"Additional constraints imposed: flows in network must be balanced.<p>"
+
+    text += f"Optimization result: {opt_result['statustext']}!<p>"
     text += f"Network total cost: {np.round(opt_result['objfunvalue'], 1)}<p>"
 
     text += f"Total cost due to distance covered with pipelines: {np.round(np.sum(np.asarray(opt_result['lpvars'][:numBinaryVars]) * np.asarray(opt_result['objfun'][:numBinaryVars])), 1)}<br>"
