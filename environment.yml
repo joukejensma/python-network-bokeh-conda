@@ -1,9 +1,9 @@
-name: heroku_network
+name: root
 channels:
   - conda-forge
   - defaults
 dependencies:
-  - bokeh=2.2.3=py39hcbf5309_0
+  - bokeh
   - ca-certificates=2020.12.5=h5b45459_0
   - certifi=2020.12.5=py39hcbf5309_0
   - freetype=2.10.4=h546665d_0
