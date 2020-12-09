@@ -126,11 +126,7 @@ def compute_network(source, floating=1., fixed=0.):
 
     lpsolve('delete_lp', lp)
 
-    text = f"Objective: minimize construction cost of network<p>"
-    text += f"Construction cost is based on number of pipes and distance between nodes.<br>"
-    text += f"Additional constraints imposed: flows in network must be balanced.<p>"
-
-    text += f"Optimization result: {opt_result['statustext']}!<p>"
+    text = f"Optimization result: {opt_result['statustext']}!<p>"
     text += f"Network total cost: {np.round(opt_result['objfunvalue'], 1)}<p>"
 
     text += f"Total cost due to distance covered with pipelines: {np.round(np.sum(np.asarray(opt_result['lpvars'][:numBinaryVars]) * np.asarray(opt_result['objfun'][:numBinaryVars])), 1)}<br>"
@@ -213,6 +209,7 @@ draw_tool = PointDrawTool(renderers=[renderer], empty_value='0')
 p.add_tools(draw_tool)
 p.toolbar.active_tap = draw_tool
 
+titletextbox = Div(text="<h2>Objective: minimize construction cost of network<p>Construction cost is based on number of pipes and distance between nodes.<br>Additional constraints imposed: flows in network must be balanced.<br></h2>", width=1100, height=150)
 textbox = Div(text="", width=200, height=100)
 floating = 1.
 fixed = 0.
@@ -246,6 +243,6 @@ for w in [lumpSumCost, floatingCost]:
     w.on_change('value', update_data)
 
 
-curdoc().add_root(Row(Column(p, table, width=800), Column(lumpSumCost, floatingCost, button, textbox, width=300)))
+curdoc().add_root(Column(titletextbox, Row(Column(p, table, width=800), Column(lumpSumCost, floatingCost, button, textbox, width=300))))
 curdoc().title = "Network"
 
