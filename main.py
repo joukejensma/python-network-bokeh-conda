@@ -191,47 +191,13 @@ def remove_glyphs(figure, glyph_name_list):
             col = r.glyph.y
             r.data_source.data[col] = [np.nan] * len(r.data_source.data[col])
 
-p = figure(x_range=(0, 10), y_range=(0, 10), tools=[],
-           title='Draw points in the network')
-p.background_fill_color = 'lightgrey'
 
-source = ColumnDataSource({
-    'x': [2, 7, 5, 8], 'y': [2, 2, 6, 1], 'flow': ['-2', '-5', '8', '-1']
-    # 'x': [1, 9], 'y': [1, 9], 'flow': ['10', '-10']
-})
-
-renderer = p.scatter(x='x', y='y', source=source, color='blue', size=10)
-columns = [TableColumn(field="x", title="x"),
-           TableColumn(field="y", title="y"),
-           TableColumn(field='flow', title='flow')]
-table = DataTable(source=source, columns=columns, editable=True, height=200)
-
-draw_tool = PointDrawTool(renderers=[renderer], empty_value='0')
-p.add_tools(draw_tool)
-p.toolbar.active_tap = draw_tool
-
-titletextbox = Div(text="<h2>Objective: minimize construction cost of network<p>Construction cost is based on number of pipes and distance between nodes.<br>Additional constraints imposed: flows in network must be balanced.<br></h2>", width=1100, height=150)
-textbox = Div(text="", width=200, height=100)
-floating = 1.
-fixed = 0.
-# show(Column(p, table))
-button = Button(label='Solve Network')
 def button_click_event(event=None, floating=1., fixed=0.):
     opt_result, text = compute_network(source, floating=floating, fixed=fixed)
 
     textbox.text = text
 
     draw_lines(p, source, opt_result)
-
-button.on_event(ButtonClick, button_click_event)
-
-
-
-
-
-p.on_event(PanEnd, button_click_event)
-lumpSumCost = Slider(title="Fixed cost pipe", value=0.0, start=0.0, end=500.0, step=50)
-floatingCost = Slider(title="Floating cost pipe", value=1.0, start=0.0, end=500.0, step=10.)
 
 
 def update_data(attrname, old, new):
@@ -240,10 +206,42 @@ def update_data(attrname, old, new):
 
     button_click_event(floating=floating, fixed=fixed)
 
-for w in [lumpSumCost, floatingCost]:
-    w.on_change('value', update_data)
+if __name__ == "__main__":
+    p = figure(x_range=(0, 10), y_range=(0, 10), tools=[],
+            title='Draw points in the network')
+    p.background_fill_color = 'lightgrey'
+
+    source = ColumnDataSource({
+        'x': [2, 7, 5, 8], 'y': [2, 2, 6, 1], 'flow': ['-2', '-5', '8', '-1']
+        # 'x': [1, 9], 'y': [1, 9], 'flow': ['10', '-10']
+    })
+
+    renderer = p.scatter(x='x', y='y', source=source, color='blue', size=10)
+    columns = [TableColumn(field="x", title="x"),
+            TableColumn(field="y", title="y"),
+            TableColumn(field='flow', title='flow')]
+    table = DataTable(source=source, columns=columns, editable=True, height=200)
+
+    draw_tool = PointDrawTool(renderers=[renderer], empty_value='0')
+    p.add_tools(draw_tool)
+    p.toolbar.active_tap = draw_tool
+
+    titletextbox = Div(text="<h2>Objective: minimize construction cost of network<p>Construction cost is based on number of pipes and distance between nodes.<br>Additional constraints imposed: flows in network must be balanced.<br></h2>", width=1100, height=150)
+    textbox = Div(text="", width=200, height=100)
+    floating = 1.
+    fixed = 0.
+    # show(Column(p, table))
+    button = Button(label='Solve Network')
+
+    button.on_event(ButtonClick, button_click_event)
+
+    p.on_event(PanEnd, button_click_event)
+    lumpSumCost = Slider(title="Fixed cost pipe", value=0.0, start=0.0, end=500.0, step=50)
+    floatingCost = Slider(title="Floating cost pipe", value=1.0, start=0.0, end=500.0, step=10.)
+
+    for w in [lumpSumCost, floatingCost]:
+        w.on_change('value', update_data)
 
 
-curdoc().add_root(Column(titletextbox, Row(Column(p, table, width=800), Column(lumpSumCost, floatingCost, button, textbox, width=300))))
-curdoc().title = "Network"
-
+    curdoc().add_root(Column(titletextbox, Row(Column(p, table, width=800), Column(lumpSumCost, floatingCost, button, textbox, width=300))))
+    curdoc().title = "Network"
