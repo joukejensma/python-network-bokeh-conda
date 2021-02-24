@@ -206,7 +206,7 @@ def update_data(attrname, old, new):
 
     button_click_event(floating=floating, fixed=fixed)
 
-if __name__ == "__main__":
+def main():
     p = figure(x_range=(0, 10), y_range=(0, 10), tools=[],
             title='Draw points in the network')
     p.background_fill_color = 'lightgrey'
@@ -245,3 +245,5 @@ if __name__ == "__main__":
 
     curdoc().add_root(Column(titletextbox, Row(Column(p, table, width=800), Column(lumpSumCost, floatingCost, button, textbox, width=300))))
     curdoc().title = "Network"
+
+main()
