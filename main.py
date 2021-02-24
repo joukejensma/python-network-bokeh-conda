@@ -3,6 +3,7 @@ from bokeh.models import DataTable, TableColumn, PointDrawTool, ColumnDataSource
 from bokeh.io import curdoc
 from bokeh.events import ButtonClick, MouseMove, PanEnd
 from bokeh.models.renderers import GlyphRenderer
+from functools import partial
 
 from lpsolve55 import lpsolve, EQ, GE, LE
 import numpy as np
@@ -192,7 +193,7 @@ def remove_glyphs(figure, glyph_name_list):
             r.data_source.data[col] = [np.nan] * len(r.data_source.data[col])
 
 
-def button_click_event(event=None, floating=1., fixed=0.):
+def button_click_event(source=None, textbox=None, event=None, floating=1., fixed=0.):
     opt_result, text = compute_network(source, floating=floating, fixed=fixed)
 
     textbox.text = text
@@ -233,7 +234,8 @@ def main():
     # show(Column(p, table))
     button = Button(label='Solve Network')
 
-    button.on_event(ButtonClick, button_click_event)
+    # button.on_event(ButtonClick, button_click_event)
+    button.on_event(partial(button_click_event, source=source, textbox=textbox))
 
     p.on_event(PanEnd, button_click_event)
     lumpSumCost = Slider(title="Fixed cost pipe", value=0.0, start=0.0, end=500.0, step=50)
@@ -241,7 +243,6 @@ def main():
 
     for w in [lumpSumCost, floatingCost]:
         w.on_change('value', update_data)
-
 
     curdoc().add_root(Column(titletextbox, Row(Column(p, table, width=800), Column(lumpSumCost, floatingCost, button, textbox, width=300))))
     curdoc().title = "Network"
