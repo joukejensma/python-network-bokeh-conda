@@ -1,7 +1,7 @@
 from bokeh.plotting import figure, output_file, show, Column, Row
-from bokeh.models import DataTable, TableColumn, PointDrawTool, ColumnDataSource, Div, Button, Slider, HoverTool
+from bokeh.models import DataTable, TableColumn, PointDrawTool, ColumnDataSource, Div, Button, Slider
 from bokeh.io import curdoc
-from bokeh.events import ButtonClick, MouseMove, PanEnd
+from bokeh.events import ButtonClick, PanEnd
 from bokeh.models.renderers import GlyphRenderer
 from functools import partial
 
@@ -14,6 +14,13 @@ def compute_network(source, floating=1., fixed=0.):
     # objective: return network to be constructed for which construction costs are minimal
     # while keeping flow constraints satisfied
     coords = list(zip(source.data['x'], source.data['y']))
+
+    # ensure that the network is always balanced by increasing/decreasing the flow of the largest value
+    source.data['flow'] = [np.float(f) for f in source.data['flow']]
+
+    imbalance = np.sum(source.data['flow'])
+    idx_of_max_flow = np.argmax(source.data['flow'])
+    source.data['flow'][idx_of_max_flow] -= imbalance
 
     flows = {}
     for i, coord in enumerate(coords):
@@ -167,7 +174,6 @@ def compute_network(source, floating=1., fixed=0.):
 
     return opt_result, text
 
-
 def draw_lines(p, source, opt_result):
     # first, remove old lines
     remove_glyphs(p, ['line'])
@@ -192,29 +198,26 @@ def remove_glyphs(figure, glyph_name_list):
             col = r.glyph.y
             r.data_source.data[col] = [np.nan] * len(r.data_source.data[col])
 
-
-def button_click_event(source=None, textbox=None, event=None, floating=1., fixed=0.):
+def button_click_event(event=None, floating=1., fixed=0., source=None, textbox=None, figure=None):
     opt_result, text = compute_network(source, floating=floating, fixed=fixed)
-
     textbox.text = text
+    draw_lines(figure, source, opt_result)
 
-    draw_lines(p, source, opt_result)
-
-
-def update_data(attrname, old, new):
+def update_data(attrname, old, new, floating=1., fixed=0., source=None, textbox=None, figure=None, lumpSumCost=None, floatingCost=None):
     fixed = lumpSumCost.value
     floating = floatingCost.value
 
-    button_click_event(floating=floating, fixed=fixed)
+    button_click_event(floating=floating, fixed=fixed, source=source, textbox=textbox, figure=figure)
 
 def main():
+    # set up main bokeh figure
     p = figure(x_range=(0, 10), y_range=(0, 10), tools=[],
             title='Draw points in the network')
     p.background_fill_color = 'lightgrey'
 
+    # start off with sample points and their associated flows
     source = ColumnDataSource({
         'x': [2, 7, 5, 8], 'y': [2, 2, 6, 1], 'flow': ['-2', '-5', '8', '-1']
-        # 'x': [1, 9], 'y': [1, 9], 'flow': ['10', '-10']
     })
 
     renderer = p.scatter(x='x', y='y', source=source, color='blue', size=10)
@@ -223,7 +226,7 @@ def main():
             TableColumn(field='flow', title='flow')]
     table = DataTable(source=source, columns=columns, editable=True, height=200)
 
-    draw_tool = PointDrawTool(renderers=[renderer], empty_value='0')
+    draw_tool = PointDrawTool(renderers=[renderer], empty_value='1')
     p.add_tools(draw_tool)
     p.toolbar.active_tap = draw_tool
 
@@ -231,19 +234,20 @@ def main():
     textbox = Div(text="", width=200, height=100)
     floating = 1.
     fixed = 0.
-    # show(Column(p, table))
     button = Button(label='Solve Network')
 
-    # button.on_event(ButtonClick, button_click_event)
-    button.on_event(partial(button_click_event, source=source, textbox=textbox))
+    button.on_event(ButtonClick, partial(button_click_event, source=source, textbox=textbox, figure=p))
 
-    p.on_event(PanEnd, button_click_event)
+    p.on_event(PanEnd, partial(button_click_event, source=source, textbox=textbox, figure=p))
+
+    # set up sliders
     lumpSumCost = Slider(title="Fixed cost pipe", value=0.0, start=0.0, end=500.0, step=50)
     floatingCost = Slider(title="Floating cost pipe", value=1.0, start=0.0, end=500.0, step=10.)
 
     for w in [lumpSumCost, floatingCost]:
-        w.on_change('value', update_data)
+        w.on_change('value', partial(update_data, source=source, textbox=textbox, figure=p, lumpSumCost=lumpSumCost, floatingCost=floatingCost))
 
+    # create page layout
     curdoc().add_root(Column(titletextbox, Row(Column(p, table, width=800), Column(lumpSumCost, floatingCost, button, textbox, width=300))))
     curdoc().title = "Network"
 
